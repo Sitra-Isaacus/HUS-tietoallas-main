@@ -1,0 +1,76 @@
+---
+
+- name: Adding group
+  group:
+    name: "{{ sftp_users_group }}"
+    state: present
+  when: sftp_users_group is defined
+  tags:
+    - networking
+    - sftp
+    - config
+
+- name: Registering nologin shell
+  lineinfile:
+    state: present
+    dest: /etc/shells
+    line: "/usr/sbin/nologin"
+    regexp: "^/usr/sbin/nologin"
+    insertafter: EOF
+  tags:
+    - networking
+    - sftp
+    - config
+
+- name: Configuring sshd subsystem
+  lineinfile:
+    state: present
+    dest: /etc/ssh/sshd_config
+    regexp: "^Subsystem\\s+sftp.*"
+    line: "Subsystem sftp internal-sftp"
+ 
+  notify: restart ssh
+  tags:
+    - networking
+    - sftp
+    - config
+
+- name: Disable Password authentication
+  lineinfile:
+    state: present
+    dest: /etc/ssh/sshd_config
+    regexp: "^PasswordAuthentication.*"
+    line: "PasswordAuthentication {{ ssh_password_authentication }}"
+
+  notify: restart ssh
+  tags:
+    - networking
+    - sftp
+    - config
+
+- name: Allow public key authentication
+  lineinfile:
+    state: present
+    dest: /etc/ssh/sshd_config
+    regexp: "^PubkeyAuthentication.*"
+    line: "PubkeyAuthentication {{ ssh_pubkey_authentication }}"
+
+  notify: restart ssh
+  tags:
+    - networking
+    - sftp
+    - config
+
+- name: Disable root login
+  lineinfile:
+    state: present
+    dest: /etc/ssh/sshd_config
+    regexp: "^PermitRootLogin.*"
+    line: "PermitRootLogin {{ ssh_permit_root_login }}"
+
+  notify: restart ssh
+  tags:
+    - networking
+    - sftp
+    - config
+

@@ -1,0 +1,11 @@
+- hosts: all-vms
+  vars_prompt:
+    - name: "ad_admin_name"
+      prompt: "Give ad_admin_name: "
+      private: no
+    - name: "ad_admin_pwd"
+      prompt: "Give ad_admin_password: "
+      private: yes
+  roles:
+    - dns_name
+    - domain_join

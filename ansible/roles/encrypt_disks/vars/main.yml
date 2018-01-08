@@ -1,0 +1,22 @@
+---
+#-------------------------------------------------------
+# Name of the script that makes the encryption
+# Do not changes this unless you know what you are doing
+#-------------------------------------------------------
+encrypt_disks_script: setup_encrypted_data_disks.sh
+
+#--------------------------------
+# Name of the encryption key file
+#--------------------------------
+keyfile: /etc/datadiskKey
+
+#----------------------------------------------------------
+# Temporary folder where the encrypt_disks_script is copied
+#----------------------------------------------------------
+temp_dir: "/var/tmp"
+
+#-------------------------------------------------------------------------------------------
+# Name(s) of the mountpoint(s) for the data disk(s)
+# Syntax: <mountpoint>[:<mountpoint>]*
+#-------------------------------------------------------------------------------------------
+mountpoints: "/mnt/datadisk"

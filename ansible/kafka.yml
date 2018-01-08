@@ -1,0 +1,6 @@
+- hosts: kafka
+  roles:
+    - common
+    - java
+    - zookeeper
+    - kafka

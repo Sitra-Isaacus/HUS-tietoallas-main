@@ -1,0 +1,25 @@
+---
+- name: Increase file descriptors
+  lineinfile:
+   path:   /etc/sysctl.conf
+   state:  present
+   regexp: '^fs.file-max'
+   line:   'fs.file-max = 100000'
+  become: yes
+
+- name: Increase hard and soft limits
+  lineinfile:
+    path:   /etc/security/limits.conf
+    state:  present
+    line:   "{{ item }}"
+    insertbefore: '^.*End of file'
+  become: yes
+  with_items:
+    - "* soft nproc 100000"
+    - "* hard nproc 100000"
+    - "* soft nofile 100000"
+    - "* hard nofile 100000"
+
+- name: Reload sysctl
+  shell: "sudo sysctl -p"
+  become: yes

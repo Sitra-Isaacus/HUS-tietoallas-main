@@ -1,0 +1,4 @@
+- hosts: "{{ workspace_name }}-headnode[0]"
+  roles:
+    - jupyter_internal_conf
+  

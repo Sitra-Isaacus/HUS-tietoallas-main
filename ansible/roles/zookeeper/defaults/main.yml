@@ -1,0 +1,10 @@
+pakcage_root: packages
+install_root: /opt/DataLake
+
+zookeeper_version: 3.4.10
+zookeeper_package_name: zookeeper-{{ zookeeper_version }}.tar.gz
+zookeeper_deployment_path: "{{ install_root }}/zookeeper-{{ zookeeper_version }}"
+zookeeper_final_path: "{{ install_root }}/zookeeper"
+
+zookeeper_data_dir: /mnt/datadisk/zookeeper
+zookeeper_log_dir: /var/log/zookeeper

@@ -1,0 +1,5 @@
+- name: Update Domain Name name to DNS
+  shell: >
+    (echo "update delete {{ domain_prefix }}.{{ domain_name }} A" ;
+     echo "update add {{ domain_prefix }}.{{ domain_name }} 3600 A {{ groups[ansible_group + '-gateway'][0] }}" ;
+     echo "send") | nsupdate -v

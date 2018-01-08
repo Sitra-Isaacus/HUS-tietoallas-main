@@ -1,0 +1,249 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "ClusterName": {
+            "type": "string"
+        },
+        "AdminLogin": {
+            "type": "string"
+        },
+        "AdminSSHKey": {
+            "type": "string"
+        },
+        "NetworkName": {
+            "type": "string"
+        },
+        "NetworkResGroupName": {
+            "type": "string"
+        },
+        "VMSize": {
+            "type": "string"
+        },
+        "ClusterSize": {
+            "type": "int"
+        },
+        "DataDiskSizeGB": {
+            "type": "int"
+        }
+    },
+    "variables": {
+        "sshKeyPath": "[concat('/home/',parameters('AdminLogin'),'/.ssh/authorized_keys')]",
+        "SubnetName": "[concat(resourceGroup().name, '-sn')]",
+        "SubnetId": "[resourceId(parameters('NetworkResGroupName'), 'Microsoft.Network/virtualNetworks/subnets', parameters('NetworkName'),  variables('SubnetName'))]",
+        "StorageAccountName": "[concat(replace(resourceGroup().name, '-', ''), parameters('ClusterName'))]",
+        "LoadBalancerName": "[concat(resourceGroup().name, '-', parameters('ClusterName'), '-lb')]",
+        "AvailabilitySetName": "[concat(resourceGroup().name, '-', parameters('ClusterName'), '-av')]",
+
+        "defaultOSImageVersionPublisher": "openlogic",
+        "defaultOSImageVersionOffer": "CentOS",
+        "defaultOSImageVersionSku": "7.3",
+
+        "AdminPassword": "not-used",
+       
+        "hostname": "[concat(resourceGroup().name, '-', parameters('ClusterName'), '-vm')]",
+
+        "VMStorageAccountContainerName": "vhds"
+    },
+    "resources": [
+         {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[variables('StorageAccountName')]",
+            "sku": {
+                "name": "Standard_LRS",
+                "tier": "Standard"
+            },
+            "kind": "Storage",
+            "apiVersion": "2016-01-01",
+            "location": "[resourceGroup().location]",
+            "tags": {},
+            "properties": {
+                 "encryption": {
+                    "keySource": "Microsoft.Storage",
+                    "services": {
+                        "blob": {
+                            "enabled": true
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "apiVersion": "2016-04-30-preview",
+            "type": "Microsoft.Compute/availabilitySets",
+            "name": "[variables('AvailabilitySetName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "platformFaultDomainCount": "[parameters('ClusterSize')]",
+                "platformUpdateDomainCount": "[parameters('ClusterSize')]",
+                "managed": false
+            }
+        },
+        {
+            "apiVersion": "2016-03-30",
+            "name": "[variables('LoadBalancerName')]",
+            "type": "Microsoft.Network/loadBalancers",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [],
+            "properties": {
+                "frontendIPConfigurations": [
+                    {
+                        "name": "LoadBalancerFrontEnd",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[variables('SubnetId')]"
+                            }
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                      "name": "loadBalancerBackEnd"
+                    }
+                ],
+                "loadBalancingRules": [
+                    {
+                      "properties": {
+                        "frontendIPConfiguration": {
+                          "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('LoadBalancerName')), '/frontendIpConfigurations/loadBalancerFrontEnd')]"
+                        },
+                        "backendAddressPool": {
+                          "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('LoadBalancerName')), '/backendAddressPools/loadBalancerBackEnd')]"
+                        },
+                        "probe": {
+                          "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('LoadBalancerName')), '/probes/lbprobe')]"
+                        },
+                        "protocol": "Tcp",
+                        "frontendPort": 443,
+                        "backendPort": 443,
+                        "idleTimeoutInMinutes": 15
+                      },
+                      "name": "lbrule"
+                    }
+                  ],
+                  "probes": [
+                    {
+                      "properties": {
+                        "protocol": "Tcp",
+                        "port": 443,
+                        "intervalInSeconds": 15,
+                        "numberOfProbes": 2
+                      },
+                      "name": "lbprobe"
+                    }
+                  ]
+            }
+        },
+        {
+            "name": "[concat(variables('hostname'), '-', copyindex(1), '-nic')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "copy": {
+                "name": "nicLoop",
+                "count": "[parameters('ClusterSize')]"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/loadBalancers/', variables('LoadBalancerName'))]"
+            ],
+            "tags": {
+                "displayName": "VMNic"
+            },
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[variables('SubnetId')]"
+                            },
+                            "loadBalancerBackendAddressPools": [
+                                {
+                                  "id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('LoadBalancerName')),'/backendAddressPools/loadBalancerBackEnd')]"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[concat(variables('hostname'), '-', copyindex(1))]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "copy": {
+                "name": "vmLoop",
+                "count": "[parameters('ClusterSize')]"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/networkInterfaces/', variables('hostname'), '-', copyindex(1), '-nic')]",
+                "[concat('Microsoft.Storage/storageAccounts/', variables('StorageAccountName'))]",
+                "[concat('Microsoft.Compute/availabilitySets/', variables('AvailabilitySetName'))]"
+            ],
+            "tags": {
+                "displayName": "VM"
+            },
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('VMSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[concat(variables('hostname'), '-', copyindex(1))]",
+                    "adminUsername": "[parameters('AdminLogin')]",
+                    "adminPassword": "[variables('AdminPassword')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": true,
+                        "ssh": {
+                            "publicKeys": [
+                                {
+                                    "path": "[variables('sshKeyPath')]",
+                                    "keyData": "[parameters('AdminSSHKey')]"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('defaultOSImageVersionPublisher')]",
+                        "offer": "[variables('defaultOSImageVersionOffer')]",
+                        "sku": "[variables('defaultOSImageVersionSku')]",
+                        "version": "latest"
+                    },
+                    "dataDisks": [
+                        {
+                            "name": "[concat(variables('hostname'), '-', copyindex(1), '-data')]",
+                            "diskSizeGB": "[parameters('dataDiskSizeGB')]",
+                            "lun":0,
+                            "vhd": {
+                                "uri": "[concat('http://', variables('StorageAccountName'), '.blob.core.windows.net/', variables('VMStorageAccountContainerName'), '/', variables('hostname'), '-', copyindex(1), '-data.vhd')]"
+                            },
+                            "createOption": "Empty"
+                        }
+                    ],
+                    "osDisk": {
+                        "name": "[concat(variables('hostname'), '-', copyindex(1))]",
+                        "vhd": {
+                            "uri": "[concat('http://', variables('StorageAccountName'), '.blob.core.windows.net/', variables('VMStorageAccountContainerName'), '/', variables('hostname'), '-', copyindex(1), '.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('hostname'), '-', copyindex(1), '-nic'))]"
+                        }
+                    ]
+                },
+                "availabilitySet": {
+                    "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('AvailabilitySetName'))]"
+                }
+            }
+        }
+    ]
+}

@@ -1,0 +1,13 @@
+- name: Restart Kafka
+  service:
+     name: kafka.service
+     state: restarted 
+     enabled: yes
+
+- name: wait for 15s to check if kafka remains active
+  listen: Restart Kafka
+  wait_for: timeout=15
+
+- name: Fail if kafka .service is not active
+  listen: Restart Kafka
+  command: systemctl is-active kafka

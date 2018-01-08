@@ -1,0 +1,17 @@
+---
+- name: Copy script to temporary folder
+  copy:
+    src: "{{role_path}}/files/{{encrypt_disks_script}}"
+    dest: "{{temp_dir}}"
+    mode: 0755
+
+- name: Execute script
+  shell:
+    "{{temp_dir}}/{{encrypt_disks_script}} -m \"{{mountpoints}}\" -k {{keyfile}}"
+  args:
+    executable: /bin/bash
+
+- name: Remove script
+  file:
+    path: "{{temp_dir}}/{{encrypt_disks_script}}"
+    state: absent

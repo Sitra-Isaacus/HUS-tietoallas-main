@@ -1,0 +1,74 @@
+- name: Create Kafka group
+  group:  
+    name: kafka
+    state: present
+
+- name: Create user for running Kafka
+  user: 
+    name: kafka 
+    group: kafka
+    state: present
+
+- name: Create installation root directory
+  file: 
+    path: "{{ install_root }}"
+    recurse: true
+    state: directory
+
+- name: Extract files from Kafka distribution package
+  unarchive: src={{ pakcage_root }}/{{ kafka_package_name }} 
+             dest={{ install_root }}
+             creates={{ kafka_deployment_path }}
+    
+- name: Change extracted dir owner to Kafka
+  file: path={{ kafka_deployment_path }}
+        owner=kafka
+        group=kafka
+        recurse=true
+        state=directory
+
+- name: Create Kafka data dir
+  file: path={{ kafka_data_dir }}
+        state=directory
+        owner=kafka
+        group=kafka  
+
+- name: Link the current kafka to kafka
+  file: 
+    src: "{{ kafka_deployment_path }}"
+    dest: "{{ kafka_final_path }}"
+    state: link
+  notify: Restart Kafka 
+
+- name: Copy Kafka server configuration
+  template:
+    src: server.properties.j2
+    dest: "{{ kafka_deployment_path }}/config/server.properties"
+    owner: kafka
+    group: kafka
+    mode: 0644
+  notify: Restart Kafka
+
+- name: Copy systemd start scirpt
+  template:
+    src: kafka.service.j2
+    dest: /etc/systemd/system/kafka.service
+    owner: root
+    group: root
+    mode: 0644
+  notify: Restart Kafka
+
+- name: Reload systemd configs
+  command: systemctl daemon-reload
+
+- name: Check if kafka.service is up
+  command: systemctl is-active kafka
+  ignore_errors: yes
+  register: command_result
+
+- name: Notify Restart Kafka handler if kafka.service is not up
+  debug:
+    msg: "Kafka state: {{ command_result.stdout }}"
+  changed_when: "command_result.rc != 0" 
+  notify: Restart Kafka
+

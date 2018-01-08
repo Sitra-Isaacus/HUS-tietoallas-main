@@ -1,0 +1,97 @@
+- name: Install or update httplib2
+  shell: pip install httplib2
+
+- name: Find out if we need a Jupyter restart
+  shell: grep 'https://{2}.{3}' {{ item }}
+  with_items:
+    - /var/lib/ambari-server/resources/common-services/JUPYTER/1.0.0/package/scripts/jupyter.py
+    - /var/lib/ambari-agent/cache/common-services/JUPYTER/1.0.0/package/scripts/jupyter.py
+  register: jupyter_conf_grep
+  ignore_errors: true
+
+- set_fact:
+    jupyter_conf_missing: "{{ jupyter_conf_grep.results[0].rc == 0 or jupyter_conf_grep.results[1].rc == 0 }}"
+
+- name: Replace the Jupyter allow origin 
+  shell:  sed -i 's/https:\/\/{2}\.{3}/*/' {{ item }}
+  with_items:
+    - /var/lib/ambari-server/resources/common-services/JUPYTER/1.0.0/package/scripts/jupyter.py
+    - /var/lib/ambari-agent/cache/common-services/JUPYTER/1.0.0/package/scripts/jupyter.py
+  when: jupyter_conf_missing
+
+- name: Find out the cluster name for the managed HDInsight cluster
+  uri:
+    url: http://localhost:8080/api/v1/clusters
+    headers:
+      Requested-By: SoftwareAutomation
+    method: GET
+    user: "{{ admin_name }}"
+    password: "{{ hdinsight_admin_pwd }}"
+    return_content: yes
+    force_basic_auth: yes
+    validate_certs: no
+  register: cluster_conf
+
+- name: Set cluster fact
+  set_fact: 
+    cluster: "{{ (cluster_conf.content | from_json)['items'][0].Clusters.cluster_name }}"
+
+- name: Shutdown Jupyter service using Ambari REST API
+  uri:
+    url: http://localhost:8080/api/v1/clusters/{{ cluster }}/services/JUPYTER
+    headers:
+      Requested-By: SoftwareAutomation
+    method: PUT
+    user: "{{ admin_name }}"
+    password: "{{ hdinsight_admin_pwd }}"
+    body: '{"RequestInfo": {"context" :"Stop JUPYTER via REST"}, "Body": {"ServiceInfo": {"state": "INSTALLED"}}}'
+    status_code: 200, 202
+    force_basic_auth: yes
+    validate_certs: no
+  when:  jupyter_conf_missing
+
+- name: Wait until the service is stopped
+  uri:
+    url: http://localhost:8080/api/v1/clusters/{{ cluster }}/services/JUPYTER/components/JUPYTER_MASTER
+    headers:
+      Requested-By: SoftwareAutomation
+    method: GET
+    user: "{{ admin_name }}"
+    password: "{{ hdinsight_admin_pwd }}"
+    return_content: yes
+    force_basic_auth: yes
+    validate_certs: no
+  register: jupyter_stop
+  until: "(jupyter_stop.content | from_json).ServiceComponentInfo.started_count == 0"
+  delay: 2
+  retries: 10
+  when:  jupyter_conf_missing
+
+- name: Start Jupyter service using Ambari REST API
+  uri:
+    url: http://localhost:8080/api/v1/clusters/{{ cluster }}/services/JUPYTER
+    headers:
+      Requested-By: SoftwareAutomation
+    method: PUT
+    user: "{{ admin_name }}"
+    password: "{{ hdinsight_admin_pwd }}"
+    body: '{"RequestInfo": {"context" :"Start JUPYTER via REST"}, "Body": {"ServiceInfo": {"state": "STARTED"}}}'
+    status_code: 200, 202
+    force_basic_auth: yes
+    validate_certs: no
+
+- name: Wait until the service is started
+  uri:
+    url: http://localhost:8080/api/v1/clusters/{{ cluster }}/services/JUPYTER/components/JUPYTER_MASTER
+    headers:
+      Requested-By: SoftwareAutomation
+    method: GET
+    user: "{{ admin_name }}"
+    password: "{{ hdinsight_admin_pwd }}"
+    return_content: yes
+    force_basic_auth: yes
+    validate_certs: no
+  register: jupyter_start
+  until: "(jupyter_start.content | from_json).ServiceComponentInfo.started_count == 1"
+  delay: 2
+  retries: 10

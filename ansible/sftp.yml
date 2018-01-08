@@ -1,0 +1,9 @@
+- hosts: sftp
+  vars:
+    ssh_permit_root_login:       "no"
+    ssh_pubkey_authentication:   "yes"
+    ssh_password_authentication: "no"
+    sftp_users_group:            "source-systems"
+    ssh_service_state:           started
+  roles:
+    - sftp

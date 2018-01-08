@@ -1,0 +1,4 @@
+- name: Install Java8 OpenJDK
+  yum: 
+    name: java
+    state: present

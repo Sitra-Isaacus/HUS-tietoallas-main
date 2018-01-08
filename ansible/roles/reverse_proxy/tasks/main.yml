@@ -1,0 +1,69 @@
+- name: Install EPEL
+  package:
+    name: epel-release
+    state: latest
+  when: ansible_os_family == "RedHat"
+
+- name: Install nginx
+  package:
+    name:  nginx
+    state: latest
+  notify: Restart nginx
+
+- name: Enable nginx service
+  command: systemctl enable nginx
+  become: yes
+
+- name: Start nginx service
+  command: systemctl start nginx
+  become: yes
+
+- name: Workaround for a bug in Ansible's 'seboolean' (see below)
+  package:
+    name: libsemanage-python
+    state: latest
+  when: ansible_os_family == "RedHat"
+
+- name: Allow nginx to perform proxy_pass
+  seboolean:
+    name: httpd_can_network_connect
+    state: yes
+    persistent: yes
+  when: ansible_os_family == "RedHat"
+
+- name: Remove default document root
+  file:
+    path: "/usr/share/nginx/html"
+    state: absent
+
+- name: Create folder for integration specific configuration files
+  file:
+    path: "/etc/nginx/integrations"
+    owner: "root"
+    group: "root"
+    state: directory
+
+- name: Copy custom dhparam.pem into /etc/ssl/certs
+  copy:
+    src: dhparam.pem
+    dest: /etc/ssl/certs/dhparam.pem
+    owner: root
+    group: root
+  notify: Reload nginx
+
+- name: Copy SSL certicate to /etc/ssl
+  copy:
+    src: "{{ item.src }}"
+    dest: "/etc/ssl/{{ item.dest }}"
+  with_items:
+    - { src: "{{ certificate_local_path }}", dest: "nginx.crt" }
+    - { src: "{{ certificate_key_local_path }}", dest: "nginx.key" }
+  notify: Reload nginx    
+
+- name: Copy custom Nginx configuration
+  template:
+    src: nginx.conf.j2
+    dest: "/etc/nginx/nginx.conf"
+    owner: root
+    group: root
+  notify: Reload nginx        

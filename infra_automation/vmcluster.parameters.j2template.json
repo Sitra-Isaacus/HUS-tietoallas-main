@@ -1,0 +1,30 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "ClusterName": {
+      "value": "{{ cluster_name }}"
+    },
+    "AdminLogin": {
+      "value": "{{ admin_name }}"
+    },
+    "AdminSSHKey": {
+      "value": "{{ admin_ssh_key }}"
+    },
+    "NetworkName": {
+      "value": "{{ vnet_name }}"
+    },
+    "NetworkResGroupName": {
+      "value": "{{ network_res_group }}"
+    },
+    "VMSize": {
+      "value": "{{ vm_size }}"
+    },
+    "ClusterSize": {
+      "value": {{ cluster_size }}
+    },
+    "DataDiskSizeGB": {
+      "value": {{ data_disk_size_gb }}
+    }
+  }
+}

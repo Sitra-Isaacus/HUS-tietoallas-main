@@ -1,0 +1,15 @@
+[Unit]
+Description=Kafka
+Before=
+After=network.target
+
+[Service]
+User=kafka
+Environment=KAFKA_HEAP_OPTS=-Xmx5G
+WorkingDirectory={{ kafka_final_path }}
+ExecStart={{ kafka_final_path }}/bin/kafka-server-start.sh {{ kafka_final_path }}/config/server.properties
+Restart=on-abort
+LimitNOFILE=100000
+
+[Install]
+WantedBy=multi-user.target

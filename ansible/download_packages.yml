@@ -1,0 +1,23 @@
+- hosts: localhost
+  vars:
+    package_root: packages
+    kafka_version: 0.10.2.1
+    zookeeper_version: 3.4.10
+  tasks:  
+  
+  - name: Create packages directory
+    file: 
+      path: "{{ package_root }}"
+      state: directory
+    
+  - name: Download Apache Kafka
+    get_url: 
+      url: "http://www.apache.org/dyn/closer.lua?filename=kafka/{{ kafka_version }}/kafka_2.11-{{ kafka_version }}.tgz&action=download"
+      dest: "{{ package_root }}/"
+           
+  - name: Download Apache Zookeeper
+    get_url: 
+      url: "http://www.apache.org/dyn/closer.lua?filename=zookeeper/zookeeper-{{ zookeeper_version }}/zookeeper-{{ zookeeper_version }}.tar.gz&action=download"
+      dest: "{{ package_root }}/"
+             
+    

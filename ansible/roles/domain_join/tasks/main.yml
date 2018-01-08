@@ -1,0 +1,54 @@
+- block:
+  - name: Install realm related libs
+    package:
+      name:  "{{ item }}"
+      state: present
+    with_items:
+      - realmd
+      - sssd
+      - krb5-workstation
+      - krb5-libs
+      - oddjob
+      - oddjob-mkhomedir
+      - samba-common-tools
+
+  - name: Install pexpect
+    pip:
+      name: pexpect
+      state: present
+
+  - name: Check if the VM is joined to the domain already
+    shell: realm list | grep sssd
+    register: realmd_bound
+    changed_when: false
+    ignore_errors: true
+
+  - name: Join VM to the domain
+    expect:
+      command: "realm join -U {{ ad_admin_name }} {{ domain_name }}"
+      responses: 
+        Password for.*: "{{ ad_admin_pwd }}"
+    when: realmd_bound|failed
+
+  - name: Update sssd config for not use fqdn
+    lineinfile:
+      path: /etc/sssd/sssd.conf
+      regexp: '^use_fully_qualified_names'
+      line: 'use_fully_qualified_names = False'
+
+  - name: Update fallback homedir in sssd config
+    lineinfile:
+      path: /etc/sssd/sssd.conf
+      regexp: '^fallback_homedir'
+      line: 'fallback_homedir = /home/%u'
+    notify: Restart sssd
+
+  - name: Enable password authentication for ssh
+    lineinfile:
+      path: /etc/ssh/sshd_config
+      regexp: '^PasswordAuthentication'
+      line: 'PasswordAuthentication yes'
+    notify: Reload sshd
+
+  when: domain_name != 'nodomain'
+

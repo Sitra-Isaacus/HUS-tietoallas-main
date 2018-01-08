@@ -1,0 +1,4 @@
+- hosts: all-vms
+  roles:
+    - common
+    - encrypt_disks

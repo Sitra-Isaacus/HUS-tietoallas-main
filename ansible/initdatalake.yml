@@ -1,0 +1,3 @@
+- hosts: "{{ ansible_group }}-headnode-primary"
+  roles:
+    - initdatalake

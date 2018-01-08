@@ -1,0 +1,5 @@
+certificate_local_path: "/opt/DataLake/secrets/wildcard.{{ domain_name }}.fullchain.crt"
+certificate_key_local_path: "/opt/DataLake/secrets/wildcard.{{ domain_name }}.decrypted.key"
+
+certificate_path: "/etc/ssl/nginx.crt"
+certificate_key_path: "/etc/ssl/nginx.key"

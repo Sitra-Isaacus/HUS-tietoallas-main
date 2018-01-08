@@ -1,0 +1,31 @@
+/opt/drill-latest/log/*.log {
+        copytruncate 
+        size 5M
+        missingok
+        rotate 10
+        compress
+        delaycompress
+        create 640 drill drill
+}
+
+/opt/drill-latest/log/*.json {
+        copytruncate 
+        size 5M
+        missingok
+        rotate 10
+        compress
+        delaycompress
+        create 640 drill drill
+}
+
+/opt/drill-latest/log/*.out {
+        copytruncate 
+        size 5M
+        missingok
+        rotate 10
+        compress
+        delaycompress
+        create 640 drill drill
+}
+
+

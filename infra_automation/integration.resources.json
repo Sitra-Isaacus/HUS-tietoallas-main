@@ -1,0 +1,284 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "NetworkResourceGroup": {
+            "type": "string"
+        },
+        "SubnetCIDR": {
+            "type": "string"
+        },
+        "ManagementSubnetCIDR": {
+            "type": "string"
+        },
+        "AdminLogin": {
+            "type": "string"
+        },
+        "AdminPassword": {
+            "type": "securestring"
+        },
+        "AdminSSHKey": {
+            "type": "string"
+        },
+        "NetworkName": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "IntegrationSubnetName": "[concat(resourceGroup().name, '-sn')]",
+        "IntegrationNSGName": "[concat(resourceGroup().name, '-nsg')]",
+        "StorageAccountName": "[replace(resourceGroup().name, '-', '')]",
+
+        "defaultOSImageVersionPublisher": "OpenLogic",
+        "defaultOSImageVersionOffer": "CentOS",
+        "defaultOSImageVersionSku": "7.3",
+
+        "sshKeyPath": "[concat('/home/',parameters('AdminLogin'),'/.ssh/authorized_keys')]",
+
+        "VMStorageAccountContainerName": "vhds",
+        "vms": [
+            {
+                "description": "The SFTP VM",
+                "hostname": "[concat(resourceGroup().name, '-sftp-vm')]",
+                "subnetName": "[variables('IntegrationSubnetName')]",
+                "OSImageVersionPublisher": "[variables('defaultOSImageVersionPublisher')]",
+                "OSImageVersionOffer": "[variables('defaultOSImageVersionOffer')]",
+                "OSImageVersionSku": "[variables('defaultOSImageVersionSku')]",
+                "vmsize": "Standard_D2_v2",
+                "dataDisksInfo": [
+                    {
+                        "dataDiskSizeGB": "500",
+                        "diskNamePostfix": "-data"
+                    }
+                ]
+            },
+            {
+                "description": "The Utility VM",
+                "hostname": "[concat(resourceGroup().name, '-utility-vm')]",
+                "subnetName": "[variables('IntegrationSubnetName')]",
+                "OSImageVersionPublisher": "[variables('defaultOSImageVersionPublisher')]",
+                "OSImageVersionOffer": "[variables('defaultOSImageVersionOffer')]",
+                "OSImageVersionSku": "[variables('defaultOSImageVersionSku')]",
+                "vmsize": "Standard_D2_v2",
+                "dataDisksInfo": [
+                    {
+                        "dataDiskSizeGB": "100",
+                        "diskNamePostfix": "-data"
+                    }
+                ]
+            }
+        ]
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[variables('StorageAccountName')]",
+            "sku": {
+                "name": "Standard_LRS",
+                "tier": "Standard"
+            },
+            "kind": "Storage",
+            "apiVersion": "2016-01-01",
+            "location": "[resourceGroup().location]",
+            "tags": {},
+            "properties": {
+                "encryption": {
+                    "keySource": "Microsoft.Storage",
+                    "services": {
+                        "blob": {
+                            "enabled": true
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "name": "[variables('IntegrationNSGName')]",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "dependsOn": [],
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "allow-http-vnet",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "443",
+                            "sourceAddressPrefix": "VirtualNetwork",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 200,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-ssh-vnet",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "VirtualNetwork",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 201,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-all-management",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "[parameters('ManagementSubnetCIDR')]",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 301,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-azure-lb",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "AzureLoadBalancer",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 106,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "allow-all-this-segment",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "[parameters('SubnetCIDR')]",
+                            "destinationAddressPrefix": "[parameters('SubnetCIDR')]",
+                            "access": "Allow",
+                            "priority": 4095,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "deny-all-from-vnet",
+                        "properties": {
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "*",
+                            "sourceAddressPrefix": "VirtualNetwork",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "access": "Deny",
+                            "priority": 4096,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[concat(variables('vms')[copyindex()].hostname, '-nic') ]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "copy": {
+                "name": "nicLoop",
+                "count": "[length(variables('vms'))]"
+            },
+            "dependsOn": [],
+            "tags": {
+                "displayName": "VMNic"
+            },
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[concat(resourceId(parameters('NetworkResourceGroup'), 'Microsoft.Network/virtualNetworks/', parameters('NetworkName')), '/subnets/',  variables('IntegrationSubnetName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[variables('vms')[copyindex()].hostname]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "copy": {
+                "name": "vmLoop",
+                "count": "[length(variables('vms'))]"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.Network/networkInterfaces/', variables('vms')[copyindex()].hostname, '-nic')]",
+                "[concat('Microsoft.Storage/storageAccounts/', variables('StorageAccountName'))]"
+            ],
+            "tags": {
+                "displayName": "VM"
+            },
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('vms')[copyindex()].vmsize]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('vms')[copyindex()].hostname]",
+                    "adminUsername": "[parameters('AdminLogin')]",
+                    "adminPassword": "[parameters('AdminPassword')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": true,
+                        "ssh": {
+                            "publicKeys": [
+                                {
+                                    "path": "[variables('sshKeyPath')]",
+                                    "keyData": "[parameters('AdminSSHKey')]"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('vms')[copyindex()].OSImageVersionPublisher]",
+                        "offer": "[variables('vms')[copyindex()].OSImageVersionOffer]",
+                        "sku": "[variables('vms')[copyindex()].OSImageVersionSku]",
+                        "version": "latest"
+                    },
+                    "dataDisks": [
+                        {
+                            "name": "[concat(variables('vms')[copyindex()].hostname, variables('vms')[copyindex()].dataDisksInfo[0].diskNamePostfix)]",
+                            "diskSizeGB": "[variables('vms')[copyindex()].dataDisksInfo[0].dataDiskSizeGB]",
+                            "lun":0,
+                            "vhd": {
+                                "uri": "[concat('http://', variables('StorageAccountName'), '.blob.core.windows.net/', variables('VMStorageAccountContainerName'), '/', variables('vms')[copyindex()].hostname, variables('vms')[copyindex()].dataDisksInfo[0].diskNamePostfix,'.vhd')]"
+                            },
+                            "createOption": "Empty"
+                        }
+                    ],
+                    "osDisk": {
+                        "name": "[variables('vms')[copyindex()].hostname]",
+                        "vhd": {
+                            "uri": "[concat('http://', variables('StorageAccountName'), '.blob.core.windows.net/', variables('VMStorageAccountContainerName'), '/', variables('vms')[copyindex()].hostname, '.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('vms')[copyindex()].hostname, '-nic'))]"
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "NetworkResourceGroup": {
+      "value": "{{ network_res_group }}"
+    },
+    "SubnetCIDR": {
+      "value": "{{ subnet_cidr }}"
+     },
+    "ManagementSubnetCIDR": {
+      "value": "{{ management_subnet_cidr }}"
+    },
+    "AdminLogin": {
+      "value": "{{ admin_name }}"
+    },
+    "AdminPassword": {
+      "value": "not-like-this"
+    },
+    "AdminSSHKey": {
+      "value": "{{ admin_ssh_key }}"
+    },
+    "NetworkName": {
+      "value": "{{ vnet_name }}"
+    }
+  }
+}

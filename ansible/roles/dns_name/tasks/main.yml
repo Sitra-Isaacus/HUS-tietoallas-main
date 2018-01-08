@@ -1,0 +1,11 @@
+- name: Set host name for current session
+  command: hostname {{ dns_name }}
+
+- name: Set host name for hostnamectl
+  shell: hostnamectl set-hostname {{ dns_name }}
+
+- name: Update Domain Name name to DNS
+  shell: >
+    (echo "update delete {{ dns_name }}.{{ domain_name }} A" ;
+     echo "update add {{ dns_name }}.{{ domain_name }} 3600 A {{ inventory_hostname }}" ;
+     echo "send") | nsupdate -v

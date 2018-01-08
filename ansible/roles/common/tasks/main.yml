@@ -1,0 +1,27 @@
+- block:
+  - name: Install epel-release for RHEL/CentOS
+    yum: 
+      name: epel-release 
+      state: present
+
+  - name: Update repos
+    yum: 
+      name: epel-release 
+      update_cache: yes
+  when: ansible_distribution == 'CentOS'
+
+- name: Install utilities
+  package:
+    name: ntp,ntpdate,ntp-doc,python-pip,wget,policycoreutils-python
+    state: present
+
+- name: Install python requests lib
+  pip:
+    name: requests
+    state: present
+    
+- name: Create installation root directory
+  file: 
+    path: "{{ install_root }}"
+    recurse: true
+    state: directory

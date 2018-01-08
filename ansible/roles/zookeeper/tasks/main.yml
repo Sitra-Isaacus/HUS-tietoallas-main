@@ -1,0 +1,84 @@
+- name: Create Zookeeper group
+  group:  
+    name: zookeeper
+    state: present
+
+- name: Create user for running Zookeeper
+  user: 
+    name: zookeeper 
+    group: zookeeper
+    state: present
+
+- name: Create installation root directory
+  file: 
+    path: "{{ install_root }}"
+    recurse: true
+    state: directory
+
+- name: Extract files from Zookeeper distribution package
+  unarchive: src={{ pakcage_root }}/{{ zookeeper_package_name }} 
+             dest={{ install_root }}
+             creates={{ zookeeper_deployment_path }}
+  notify: restart zookeeper             
+    
+- name: Change extracted dir owner to zookeeper
+  file: path={{ zookeeper_deployment_path }}
+        owner=zookeeper
+        group=zookeeper
+        recurse=true
+        state=directory
+
+- name: Create Zookeeper data dir
+  file: path={{ zookeeper_data_dir }}
+        state=directory
+        owner=zookeeper
+        group=zookeeper    
+        
+- name: Create Zookeeper log dir
+  file: path={{ zookeeper_log_dir }}
+        state=directory
+        owner=zookeeper
+        group=zookeeper  
+
+- name: Link the current zookeeper to zookeeper
+  file: src={{ zookeeper_deployment_path }}
+        dest={{ zookeeper_final_path }}
+        state=link
+  notify: restart zookeeper 
+   
+- name: Modify Zookeeper logging to log to {{ zookeeper_log_dir }}
+  lineinfile: dest={{ zookeeper_deployment_path }}/conf/log4j.properties
+              regexp='^zookeeper\.log\.dir=\.'
+              line='zookeeper.log.dir={{ zookeeper_log_dir }}'
+              backup=yes
+  notify: restart zookeeper  
+  
+- name: Copy Zookeeper server configuration
+  template:
+    src: zoo.cfg.j2
+    dest: "{{ zookeeper_deployment_path }}/conf/zoo.cfg"
+    owner: zookeeper
+    group: zookeeper
+    mode: 0644
+  notify: restart zookeeper  
+
+- name: Copy Zookeeper myid configuration file
+  template:
+    src: myid.j2
+    dest: "{{ zookeeper_data_dir }}/myid"
+    owner: zookeeper
+    group: zookeeper
+    mode: 0644
+  notify: restart zookeeper
+
+- name: Copy systemd start scirpt
+  template:
+    src: zookeeper.service.j2
+    dest: /etc/systemd/system/zookeeper.service
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart zookeeper  
+
+- name: Reload systemd configs
+  command: systemctl daemon-reload
